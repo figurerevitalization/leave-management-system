@@ -267,8 +267,7 @@
 
   /* ---------- Pages ---------- */
   PAGES.dashboard = async (el) => {
-    const [{ leaves }, { user }] = await Promise.all([api('/leaves/mine'), api('/auth/me')]);
-    me = user;
+    const [{ leaves }, stats] = await Promise.all([api('/leaves/mine'), me.role === 'admin' ? api('/admin/stats') : null]);
     const count = (s) => leaves.filter((l) => l.status === s).length;
     const year = String(new Date().getFullYear());
     const daysTaken = leaves.filter((l) => l.status === 'approved' && l.from.startsWith(year)).reduce((a, l) => a + l.days, 0);
@@ -286,7 +285,7 @@
         ${stat('navy', 'sun', daysTaken, `Days taken in ${year}`)}
       </div>`;
     if (me.role === 'admin') {
-      const s = await api('/admin/stats');
+      const s = stats;
       const n = (k) => s.byStatus.find((x) => x._id === k)?.n || 0;
       html += `<div class="card"><h3>Organisation overview</h3><div class="cards" style="margin:0">
         ${stat('', 'users', s.users, 'Active users')}${stat('', 'clock', n('pending'), 'In approval')}
