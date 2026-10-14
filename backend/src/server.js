@@ -26,7 +26,7 @@ app.use(express.json({ limit: '50kb' }));
 
 // Connect once and reuse (also works on serverless hosts, where the app is reused between requests)
 let ready;
-const connect = () => (ready ||= mongoose.connect(process.env.MONGODB_URI).then(seed).catch((e) => { ready = null; throw e; }));
+const connect = () => (ready ||= mongoose.connect(process.env.MONGODB_URI, { serverSelectionTimeoutMS: 8000 }).then(seed).catch((e) => { ready = null; throw e; }));
 // Health check: reports a safe, human-readable reason when the database is unreachable
 app.get('/api/health', async (req, res) => {
   try {
@@ -37,7 +37,7 @@ app.get('/api/health', async (req, res) => {
     const reason = !process.env.MONGODB_URI ? 'MONGODB_URI is not set on the server'
       : /bad auth|authentication failed/i.test(m) ? 'Database username or password is wrong'
       : /ENOTFOUND|ECONNREFUSED|querySrv|Invalid (scheme|connection)/i.test(m) ? 'Database address is invalid or unreachable (check MONGODB_URI)'
-      : /Server selection timed out|ETIMEDOUT/i.test(m) ? 'Database timed out: in Atlas Network Access, allow 0.0.0.0/0'
+      : /Server selection timed out|ETIMEDOUT|whitelist|Could not connect to any servers|ReplicaSetNoPrimary/i.test(m) ? 'Atlas is refusing this server: in Atlas open Network Access and allow 0.0.0.0/0 (Allow access from anywhere)'
       : 'Could not connect to the database';
     console.error('DB connect failed:', m);
     res.status(503).json({ ok: false, db: 'down', reason });
