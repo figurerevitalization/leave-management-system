@@ -12,7 +12,7 @@ until the previous level has cleared it, and cannot decide on their own leave.
 
 ## Features
 Leave types (casual/sick/earned/unpaid) · weekday-only day count · half-day · overlap check ·
-live 3-step progress tracker with comments · cancel pending/future leave ·
+live 3-step progress tracker with comments · cancel pending/future leave · delete your own finished records (cancelled, rejected, past approved) one by one or all at once ·
 in-app notifications · team calendar · admin user management (roles, deactivate, password reset) ·
 admin overview + all-leaves view · JWT auth, bcrypt, rate-limited login.
 

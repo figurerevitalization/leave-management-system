@@ -254,6 +254,7 @@
 
   function leaveCard(l, opts = {}) {
     const cancellable = l.status === 'pending' || (l.status === 'approved' && l.from > todayStr());
+    const deletable = l.status === 'cancelled' || l.status === 'rejected' || (l.status === 'approved' && l.to < todayStr());
     return `<div class="leave-item ${l.status}">
       ${opts.who ? `<div class="leave-person">${avatar(l.user?.name)}<div><span class="who">${esc(l.user?.name || 'Deleted user')}</span><br><span class="muted small">${esc(l.user?.department || '')}</span></div></div>` : ''}
       <div class="leave-head">
@@ -262,15 +263,29 @@
         <div>${pill(l.status)}</div></div>
       <div class="leave-reason">${esc(l.reason)}</div>
       ${stepper(l)}
-      ${opts.actions || (opts.cancel !== false && cancellable ? `<div class="leave-foot"><span class="muted small">Applied ${new Date(l.createdAt).toLocaleDateString()}</span><button class="btn sm outline-danger" data-cancel="${l._id}">Cancel request</button></div>` : '')}
+      ${opts.actions || (opts.cancel !== false && cancellable ? `<div class="leave-foot"><span class="muted small">Applied ${new Date(l.createdAt).toLocaleDateString()}</span><button class="btn sm outline-danger" data-cancel="${l._id}">Cancel request</button></div>` : '')}${!opts.actions && opts.cancel !== false && deletable ? `<div class="leave-foot"><span class="muted small">Applied ${new Date(l.createdAt).toLocaleDateString()}</span><button class="btn sm" data-delete="${l._id}">Delete record</button></div>` : ''}
     </div>`;
   }
 
   function bindLeaveActions(el) {
+    el.querySelectorAll('[data-delete]').forEach((b) => (b.onclick = () => deleteRecords(b, b.dataset.delete)));
     el.querySelectorAll('[data-cancel]').forEach((b) => (b.onclick = async () => {
       if (!(await confirmBox('Cancel this request?', 'The request will be withdrawn and approvers will no longer see it.', 'Yes, cancel it'))) return;
       act(b, async () => { await api(`/leaves/${b.dataset.cancel}/cancel`, { method: 'POST' }); toast('Leave request cancelled'); route(); });
     }));
+  }
+
+  async function deleteRecords(btn, id) {
+    const one = !!id;
+    if (!(await confirmBox(one ? 'Delete this record?' : 'Clear all past records?',
+      one ? 'It will be removed permanently and will no longer appear in your history or in approval histories.'
+        : 'All your cancelled, rejected and finished approved requests will be removed permanently. Pending and upcoming leave is kept.',
+      one ? 'Delete' : 'Clear all'))) return;
+    act(btn, async () => {
+      const d = await api(one ? `/leaves/${id}` : '/leaves/mine/finished', { method: 'DELETE' });
+      toast(one ? 'Record deleted' : `${plural(d.deleted, 'record')} cleared`);
+      route();
+    });
   }
 
   /* ---------- Pages ---------- */
@@ -377,8 +392,11 @@
     const tabs = [['all', 'All'], ['pending', 'In approval'], ['approved', 'Approved'], ['rejected', 'Rejected'], ['cancelled', 'Cancelled']];
     const draw = () => {
       const list = leaves.filter((l) => filter === 'all' || l.status === filter);
-      el.innerHTML = filterTabs(tabs, filter, counts) + (list.length ? list.map((l) => leaveCard(l)).join('') : empty('inbox', 'Nothing here', 'No requests with this status.'));
+      const finishedCount = leaves.filter((l) => l.status === 'cancelled' || l.status === 'rejected' || (l.status === 'approved' && l.to < todayStr())).length;
+      el.innerHTML = (finishedCount ? `<div class="toolbar"><span class="muted small" style="flex:1;min-width:180px">${plural(finishedCount, 'past record')} you can clear to keep your history tidy.</span><button class="btn sm outline-danger" id="clear-all">Clear all past records</button></div>` : '')
+        + filterTabs(tabs, filter, counts) + (list.length ? list.map((l) => leaveCard(l)).join('') : empty('inbox', 'Nothing here', 'No requests with this status.'));
       el.querySelectorAll('.tab').forEach((t) => (t.onclick = () => { filter = t.dataset.f; draw(); }));
+      $('#clear-all')?.addEventListener('click', (e) => deleteRecords(e.currentTarget));
       bindLeaveActions(el);
     };
     draw();

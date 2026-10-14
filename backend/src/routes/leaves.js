@@ -83,6 +83,28 @@ router.post('/:id/cancel', async (req, res) => {
   res.json({ leave });
 });
 
+// ---- Clean-up: people can delete their own finished records ----
+// Deletable: cancelled, rejected, or approved leave that has already ended. Pending and upcoming leave must be cancelled first.
+const finished = () => ({
+  $or: [{ status: { $in: ['cancelled', 'rejected'] } }, { status: 'approved', to: { $lt: today() } }],
+});
+
+router.delete('/mine/finished', async (req, res) => {
+  const old = await Leave.find({ user: req.user._id, ...finished() }).select('_id');
+  const ids = old.map((l) => l._id);
+  await Promise.all([Leave.deleteMany({ _id: { $in: ids } }), Notification.deleteMany({ leave: { $in: ids } })]);
+  res.json({ deleted: ids.length });
+});
+
+router.delete('/:id', async (req, res) => {
+  const leave = await Leave.findOne({ _id: req.params.id, user: req.user._id });
+  if (!leave) return res.status(404).json({ error: 'Not found' });
+  const ok = await Leave.exists({ _id: leave._id, ...finished() });
+  if (!ok) return res.status(400).json({ error: 'Only cancelled, rejected or past approved leave can be deleted. Cancel it first.' });
+  await Promise.all([leave.deleteOne(), Notification.deleteMany({ leave: leave._id })]);
+  res.json({ ok: true });
+});
+
 // ---- Approver ----
 router.get('/pending', async (req, res) => {
   const level = approverLevel(req.user);
