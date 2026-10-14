@@ -8,6 +8,10 @@ const rateLimit = require('express-rate-limit');
 const bcrypt = require('bcryptjs');
 const User = require('./models/User');
 
+// No JWT_SECRET set? Derive a private one from the database URI (it contains the DB password, so it is secret and stable)
+if (!process.env.JWT_SECRET && process.env.MONGODB_URI)
+  process.env.JWT_SECRET = require('crypto').createHash('sha256').update('leavedesk-jwt:' + process.env.MONGODB_URI).digest('hex');
+
 if (!process.env.JWT_SECRET || !process.env.MONGODB_URI) {
   console.error('Missing JWT_SECRET or MONGODB_URI. Copy .env.example to .env and fill it in.');
   if (require.main === module) process.exit(1);
