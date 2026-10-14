@@ -76,12 +76,17 @@
   }
 
   /* ---------- Modal ---------- */
+  // Lock the page behind an open menu or popup so touch-scrolling can't move it
+  const syncLock = () => document.body.classList.toggle('lock',
+    !$('#modal').classList.contains('hidden') || $('#sidebar').classList.contains('open'));
   function modal(html) {
     $('#modal-card').innerHTML = html;
     $('#modal').classList.remove('hidden');
+    $('#modal-card').scrollTop = 0;
+    syncLock();
     return $('#modal-card');
   }
-  const closeModal = () => $('#modal').classList.add('hidden');
+  const closeModal = () => { $('#modal').classList.add('hidden'); syncLock(); };
   $('#modal').addEventListener('mousedown', (e) => { if (e.target.id === 'modal') closeModal(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
 
@@ -173,8 +178,9 @@
     const a = e.target.closest('a');
     if (a) { location.hash = a.dataset.p; closeSidebar(); }
   });
-  const closeSidebar = () => { $('#sidebar').classList.remove('open'); $('#scrim').classList.remove('show'); };
-  $('#menu-btn').onclick = () => { $('#sidebar').classList.toggle('open'); $('#scrim').classList.toggle('show'); };
+  const closeSidebar = () => { $('#sidebar').classList.remove('open'); $('#scrim').classList.remove('show'); syncLock(); };
+  $('#menu-btn').onclick = () => { $('#sidebar').classList.toggle('open'); $('#scrim').classList.toggle('show', $('#sidebar').classList.contains('open')); syncLock(); };
+  window.addEventListener('resize', () => { if (innerWidth > 900) closeSidebar(); });
   $('#scrim').onclick = closeSidebar;
 
   const skeleton = (n = 3) => Array.from({ length: n }, () => '<div class="skel"></div>').join('');
@@ -183,6 +189,8 @@
     if (!me) return;
     const p = (location.hash || '#dashboard').slice(1);
     current = PAGES[p] && navItems().some(([k]) => k === p) ? p : 'dashboard';
+    closeSidebar();
+    $('#bell-panel').classList.add('hidden');
     $('#page-title').textContent = TITLES[current];
     $('#page-sub').textContent = SUBS[current]();
     renderNav();
@@ -442,10 +450,20 @@
         const wk = new Date(y, mo - 1, d).getDay() % 6 === 0;
         const chips = leaves.filter((l) => l.from <= ds && l.to >= ds)
           .map((l) => `<div class="chip ${l.status}" title="${esc(l.name)} – ${TYPES[l.type]} (${l.status})">${esc(l.name)}</div>`).join('');
-        cells += `<div class="d ${wk ? 'weekend' : ''} ${ds === todayStr() ? 'today' : ''}"><span class="n">${d}</span>${chips}</div>`;
+        cells += `<div class="d ${wk ? 'weekend' : ''} ${ds === todayStr() ? 'today' : ''}" data-day="${ds}"><span class="n">${d}</span>${chips}</div>`;
       }
       $('#cal-wrap').innerHTML = `<div class="cal-nav"><button class="btn sm" id="prev" aria-label="Previous month">‹</button><h3>${first.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</h3><button class="btn sm" id="next" aria-label="Next month">›</button><button class="btn sm" id="today">Today</button></div>
-        <div class="cal">${cells}</div><div class="legend"><span><i></i>Approved</span><span><i class="p"></i>In approval</span></div>`;
+        <div class="cal">${cells}</div><div class="legend"><span><i></i>Approved</span><span><i class="p"></i>In approval</span></div><div class="day-detail" id="day-detail"></div>`;
+      const showDay = (ds) => {
+        const list = leaves.filter((l) => l.from <= ds && l.to >= ds);
+        $('#cal-wrap').querySelectorAll('.d.sel').forEach((x) => x.classList.remove('sel'));
+        $(`#cal-wrap [data-day="${ds}"]`)?.classList.add('sel');
+        $('#day-detail').innerHTML = `<h4>${fmt(ds)}</h4>` + (list.length
+          ? list.map((l) => `<div class="day-row">${avatar(l.name)}<div class="grow"><b>${esc(l.name)}</b><br><span class="muted small">${TYPES[l.type]}${l.halfDay ? ' · half day' : ''} · ${range(l)}</span></div>${pill(l.status)}</div>`).join('')
+          : '<div class="muted">Nobody is on leave this day.</div>');
+      };
+      $('#cal-wrap').querySelectorAll('[data-day]').forEach((c) => (c.onclick = () => showDay(c.dataset.day)));
+      showDay(m === todayStr().slice(0, 7) ? todayStr() : `${m}-01`);
       $('#prev').onclick = () => { shift(-1); draw(); };
       $('#next').onclick = () => { shift(1); draw(); };
       $('#today').onclick = () => { m = todayStr().slice(0, 7); draw(); };
