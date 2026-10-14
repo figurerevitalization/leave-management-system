@@ -10,7 +10,7 @@ const User = require('./models/User');
 
 if (!process.env.JWT_SECRET || !process.env.MONGODB_URI) {
   console.error('Missing JWT_SECRET or MONGODB_URI. Copy .env.example to .env and fill it in.');
-  process.exit(1);
+  if (require.main === module) process.exit(1);
 }
 
 const app = express();
@@ -23,6 +23,11 @@ app.use(cors({
   origin: (origin, cb) => cb(null, !origin || origins.includes('*') || origins.includes(origin) || LOCAL.test(origin)),
 }));
 app.use(express.json({ limit: '50kb' }));
+
+// Connect once and reuse (also works on serverless hosts, where the app is reused between requests)
+let ready;
+const connect = () => (ready ||= mongoose.connect(process.env.MONGODB_URI).then(seed).catch((e) => { ready = null; throw e; }));
+app.use(async (req, res, next) => { await connect(); next(); });
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 app.use('/api/auth/login', rateLimit({ windowMs: 15 * 60 * 1000, max: 30, standardHeaders: true }));
@@ -54,12 +59,14 @@ async function seed() {
   console.log('Seeded demo users (admin@company.com / Admin@123, others Pass@1234). Change them!');
 }
 
-const port = process.env.PORT || 5000;
-mongoose
-  .connect(process.env.MONGODB_URI)
-  .then(seed)
-  .then(() => app.listen(port, () => console.log(`API running on :${port}`)))
-  .catch((e) => {
-    console.error('Startup failed:', e.message);
-    process.exit(1);
-  });
+if (require.main === module) {
+  const port = process.env.PORT || 5000;
+  connect()
+    .then(() => app.listen(port, () => console.log(`API running on :${port}`)))
+    .catch((e) => {
+      console.error('Startup failed:', e.message);
+      process.exit(1);
+    });
+}
+
+module.exports = app;
