@@ -17,7 +17,11 @@ const app = express();
 app.set('trust proxy', 1);
 app.use(helmet());
 const origins = (process.env.CORS_ORIGIN || '*').split(',').map((s) => s.trim());
-app.use(cors({ origin: origins.includes('*') ? true : origins }));
+// Allowed: listed origins, plus any localhost / 127.0.0.1 port for local development
+const LOCAL = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+app.use(cors({
+  origin: (origin, cb) => cb(null, !origin || origins.includes('*') || origins.includes(origin) || LOCAL.test(origin)),
+}));
 app.use(express.json({ limit: '50kb' }));
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));

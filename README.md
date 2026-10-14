@@ -2,6 +2,8 @@
 
 Node/Express + MongoDB API with a static frontend (HTML/CSS/JS). Login is mandatory.
 
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/figurerevitalization/leave-management-system)
+
 ## How approval works
 Employee applies → **Level 1** (Team Lead) → **Level 2** (HR) → **Level 3** (Director).
 Only after all three approve does the leave become *Approved*.
